@@ -1,31 +1,36 @@
-#include <arpa/inet.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
 #include <unistd.h>
 
-#include <libmnl/libmnl.h>
-#include <linux/netfilter.h>
-#include <linux/netfilter/nfnetlink.h>
+#include <netinet/in.h>
 
-#include <linux/netfilter/nfnetlink_queue.h>
-#include <linux/types.h>
+#include <libmnl/libmnl.h>
+
+#include <linux/netlink.h>
+#include <linux/netfilter.h>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
-
-#include <linux/netfilter/nfnetlink_conntrack.h>
+#include <libnetfilter_queue/linux_nfnetlink_queue.h>
 
 static struct mnl_socket *nl;
+
+static void nfq_send_verdict(int queue_num, uint32_t id) {
+    char buf[MNL_SOCKET_BUFFER_SIZE];
+    struct nlmsghdr *nlh;
+
+    nlh = nfq_nlmsg_put(buf, NFQNL_MSG_VERDICT, queue_num);
+    // print buf for payload
+
+    nfq_nlmsg_verdict_put(nlh, id, NF_ACCEPT);
+}
+
 
 static int queue_cb(const struct nlmsghdr *nlh, void *data) {
     struct nfqnl_msg_packet_hdr *ph = NULL;
     struct nlattr *attr[NFQA_MAX + 1] = {};
-    uint32_t id = 0, skbinfo;
+    uint32_t id = 0;
     struct nfgenmsg *nfg;
     uint16_t plen;
-
 
     if (nfq_nlmsg_parse(nlh, attr) < 0) {
         perror("problems parsing");
@@ -33,8 +38,20 @@ static int queue_cb(const struct nlmsghdr *nlh, void *data) {
     }
 
     nfg = mnl_nlmsg_get_payload(nlh);
+
+    if (attr[NFQA_PACKET_HDR] == NULL) {
+        fputs("metaheader not set\n", stderr);
+        return MNL_CB_ERROR;
+    }
+
     ph = mnl_attr_get_payload(attr[NFQA_PACKET_HDR]);
     plen = mnl_attr_get_payload_len(attr[NFQA_PAYLOAD]);
+
+    id = ntohl(ph->packet_id);
+    printf("packet received (id=%u hw=0x%04x hook=%u, payload len %u", id,
+           ntohs(ph->hw_protocol), ph->hook, plen);
+
+    nfq_send_verdict(ntohs(nfg->res_id), id);
 
     return MNL_CB_OK;
 }
@@ -104,6 +121,5 @@ int main(int argc, char **argv) {
     }
 
     mnl_socket_close(nl);
-
     return 0;
 }
