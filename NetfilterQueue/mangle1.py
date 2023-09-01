@@ -3,25 +3,23 @@ from scapy.all import *
 
 def packet_mangler(pkt):
     sc_pkt = IP(pkt.get_payload())
-    if not sc_pkt.haslayer("UDP"):
-        pkt.accept()
-        return 
-    if sc_pkt.dst == '192.168.226.165':
-        # add extra bytes at end of packet
-        payload = bytearray(bytes(sc_pkt))
-        payload += b'ffffffff'
-        # update sc_pkt with new payload
-        sc_pkt = IP(payload)
-        # sc_pkt[UDP].len = len(bytes(sc_pkt[UDP]))
-        sc_pkt[UDP].chksum = 0x0000
-        pkt.set_payload(bytes(sc_pkt))
-        # check if packet is actually modified
-        modified_pkt = IP(pkt.get_payload())
-    if sc_pkt.dst == '192.168.226.176':
-        # fetch extra bytes at end of packet
-        payload = bytearray(bytes(sc_pkt))
-        data = payload[-8:]
-        print(data)
+    payload = bytearray(bytes(sc_pkt))
+
+    if sc_pkt.haslayer("UDP"):
+        if sc_pkt.dst == '192.168.226.165':
+            payload = payload + b'ffffffff'
+        elif sc_pkt.dst == '192.168.226.176':
+            print("data received: " + payload[-8:])
+            # payload = payload[:-8]
+
+    sc_pkt = IP(payload)
+    sc_pkt[IP].len = len(bytes(sc_pkt[IP]))
+    sc_pkt[UDP].len = len(bytes(sc_pkt[UDP]))
+    sc_pkt[UDP].chksum = 0x0000
+    pkt.set_payload(bytes(sc_pkt))
+    modified_pkt = IP(pkt.get_payload())
+    print(modified_pkt.show())
+
     pkt.accept()
 
 nfqueue = NetfilterQueue()
