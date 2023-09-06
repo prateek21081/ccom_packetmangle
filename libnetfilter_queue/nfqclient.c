@@ -1,73 +1,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <string.h>
-
-#include <netinet/ip.h> // For struct ip
-#include <netinet/tcp.h> // For struct tcphdr
-#include <netinet/udp.h> // For struct udphdr
-
-unsigned long packet_count = 0;
+#include <sys/time.h>
 
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data) {
     struct nfqnl_msg_packet_hdr *ph;
+    unsigned char *pkt_data;
+    struct ip *ip_hdr;
+    struct udphdr *udp_hdr;
+    struct timeval tval;
+    int pkt_len;
+
     ph = nfq_get_msg_packet_hdr(nfa);
+    pkt_len = nfq_get_payload(nfa, &pkt_data);
+    ip_hdr = (struct ip *)pkt_data;
+    udp_hdr = (struct udphdr *)(pkt_data + ip_hdr->ip_hl * 4);
 
-    unsigned char *pktData;
-    int len = nfq_get_payload(nfa, &pktData);
+    gettimeofday(&tval, NULL);
+    unsigned char modified_pkt[pkt_len + sizeof(struct timeval)];
+    memcpy(modified_pkt, pkt_data, pkt_len);
+    memcpy(modified_pkt + pkt_len, &tval.tv_sec, sizeof(tval.tv_sec));
+    memcpy(modified_pkt + pkt_len + sizeof(tval.tv_sec), &tval.tv_usec, sizeof(tval.tv_usec));
+    // printf("tv_sec:%lu tv_usec:%lu\n", tval.tv_sec, tval.tv_usec);
 
-    struct ip *ipHeader = (struct ip *)pktData;
-
-    // Check if it's TCP or UDP (IPv4 only for simplicity)
-    if (ipHeader->ip_v == 4) {
-        if (ipHeader->ip_p == IPPROTO_TCP) {
-            struct tcphdr *tcpHeader = (struct tcphdr *)(pktData + ipHeader->ip_hl * 4);
-            if (ntohs(tcpHeader->dest) == 27015) {
-                unsigned char modified_pkt[len + 16];
-                memcpy(modified_pkt, pktData, len);
-                printf("tcp: ");
-                for (int i = 0; i < len +  16; i++)
-                    printf("%c", modified_pkt[i]);
-                printf("\n");
-                memset(&modified_pkt[len], 0xFF, 16);
-                return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, len + 16, modified_pkt);
-            }
-        } else if (ipHeader->ip_p == IPPROTO_UDP) {
-            struct udphdr *udpHeader = (struct udphdr *)(pktData + ipHeader->ip_hl * 4);
-            if (ntohs(udpHeader->dest) == 27015) {
-                unsigned char modified_pkt[len + 16];
-                memcpy(modified_pkt, pktData, len);
-                printf("udp: ");
-                for (int i = 0; i < len +  16; i++)
-                    printf("%c", modified_pkt[i]);
-                printf("\n");
-                memset(&modified_pkt[len], 0xFF, 16);
-                return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, len + 16, modified_pkt);
-            }
-        }
-    }
-
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
+    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len + sizeof(tval.tv_sec) + sizeof(tval.tv_usec), modified_pkt);
 }
-
-/*static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data) {
-    struct nfqnl_msg_packet_hdr *ph;
-    ph = nfq_get_msg_packet_hdr(nfa);
-
-    packet_count++;
-    printf("Packet Count: %lu\n", packet_count);
-
-    unsigned char *pktData;
-    int len = nfq_get_payload(nfa, &pktData);
-
-    unsigned char modified_pkt[len + 4];
-    memcpy(modified_pkt, pktData, len);
-    memset(&modified_pkt[len], 0xFF, 4); // You can replace this with any 4 bytes you wish
-
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, len + 4, modified_pkt);
-}*/
 
 int main() {
     struct nfq_handle *h;
