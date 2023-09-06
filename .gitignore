@@ -42,6 +42,9 @@
 *.idb
 *.pdb
 
+# virtual environments
+*.venv
+
 # Kernel Module Compile Results
 *.mod*
 *.cmd
