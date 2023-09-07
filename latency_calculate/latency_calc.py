@@ -1,8 +1,14 @@
 import pyshark
 import statistics
+import sys
 from datetime import datetime
 # Open the pcapng file for reading
-cap = pyshark.FileCapture('latency_cap_server.pcapng' )
+
+if len(sys.argv) < 2:
+    print("Please enter the name of the pcap file as an argument")
+    exit(1)
+
+cap = pyshark.FileCapture(sys.argv[1])
 
 diffs = []
 
@@ -19,7 +25,7 @@ for pkt in cap:
             seconds = int("".join(pkt_bytes[:4]), 16)
             nanoseconds = int("".join(pkt_bytes[8:]), 16)
             obj = datetime.fromtimestamp(seconds + nanoseconds / 1e9)
-            diffs.append((obj - sniff_time).total_seconds())
+            diffs.append(abs((obj - sniff_time).total_seconds()))
 
 diffs.sort()
 
