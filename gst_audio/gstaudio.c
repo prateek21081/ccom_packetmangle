@@ -1,81 +1,106 @@
 #include <gst/gst.h>
 
-int main (int argc, char *argv[]) {
-	GstElement *pipeline, *source, *sink;
-	GstBus *bus;
-	GstMessage *msg;
-	GstStateChangeReturn ret;
+/* Structure to contain all our information, so we can pass it to callbacks */
+typedef struct _CustomData {
+  GstElement *pipeline;
+  GstElement *pulsesrc;
+  GstElement *audioconvert;
+  GstElement *opusenc;
+  GstElement *oggmux;
+  GstElement *tcpclientsink;
+} CustomData;
 
-	/* Initialize GStreamer */
-	gst_init (&argc, &argv);
+int main(int argc, char *argv[]) {
+  CustomData data;
+  GstBus *bus;
+  GstMessage *msg;
+  GstStateChangeReturn ret;
+  gboolean terminate = FALSE;
 
-	/* Create the elements */
-	source = gst_element_factory_make ("pulsesrc", "source");
-	sink = gst_element_factory_make ("pulsesink", "sink");
+  /* Initialize GStreamer */
+  gst_init (&argc, &argv);
 
-	/* Create the empty pipeline */
-	pipeline = gst_pipeline_new ("pipeline");
+  /* Create the elements */
+  data.pulsesrc = gst_element_factory_make ("pulsesrc", "pulsesource");
+  data.audioconvert = gst_element_factory_make ("audioconvert", "audioconvert");
+  data.opusenc = gst_element_factory_make ("opusenc", "opusenc");
+  data.oggmux = gst_element_factory_make ("oggmux", "oggmux");
+  data.tcpclientsink = gst_element_factory_make ("tcpclientsink", "tcpclientsink");
 
-	if (!pipeline || !source || !sink) {
-		g_printerr ("Not all elements could be created.\n");
-		return -1;
-	}
+  /* Create the empty pipeline */
+  data.pipeline = gst_pipeline_new ("opus-pipeline");
 
-	/* Build the pipeline */
-	gst_bin_add_many (GST_BIN (pipeline), source, sink, NULL);
-	if (gst_element_link (source, sink) != TRUE) {
-		g_printerr ("Elements could not be linked.\n");
-		gst_object_unref (pipeline);
-		return -1;
-	}
+  if (!data.pipeline || !data.pulsesrc || !data.audioconvert || !data.opusenc || !data.oggmux || !data.tcpclientsink) {
+    g_printerr ("Not all elements could be created.\n");
+    return -1;
+  }
 
-	/* Modify the source's properties */
-	// g_object_set (source, "pattern", 0, NULL);
+  /* Build the pipeline. Note that we are NOT linking the source at this
+   * point. We will do it later. */
+  gst_bin_add_many (GST_BIN (data.pipeline), data.pulsesrc, data.audioconvert, data.opusenc, data.oggmux, data.tcpclientsink, NULL);
+  if (!gst_element_link_many (data.pulsesrc, data.audioconvert, data.opusenc, data.oggmux, data.tcpclientsink, NULL)) {
+    g_printerr ("Elements could not be linked.\n");
+    gst_object_unref (data.pipeline);
+    return -1;
+  }
 
-	/* Start playing */
-	ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
-	if (ret == GST_STATE_CHANGE_FAILURE) {
-		g_printerr ("Unable to set the pipeline to the playing state.\n");
-		gst_object_unref (pipeline);
-		return -1;
-	}
+  /* Set the element parameters */
+  g_object_set (data.tcpclientsink, "port", 3000, NULL);
+  g_object_set (data.opusenc, "bitrate", 128000, NULL);
 
-	/* Wait until error or EOS */
-	bus = gst_element_get_bus (pipeline);
-	msg =
-			gst_bus_timed_pop_filtered (bus, GST_CLOCK_TIME_NONE,
-			GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
+  /* Start playing */
+  ret = gst_element_set_state (data.pipeline, GST_STATE_PLAYING);
+  if (ret == GST_STATE_CHANGE_FAILURE) {
+    g_printerr ("Unable to set the pipeline to the playing state.\n");
+    gst_object_unref (data.pipeline);
+    return -1;
+  }
 
-	/* Parse message */
-	if (msg != NULL) {
-		GError *err;
-		gchar *debug_info;
+  /* Listen to the bus */
+  bus = gst_element_get_bus (data.pipeline);
+  do {
+    msg = gst_bus_timed_pop_filtered (bus, GST_CLOCK_TIME_NONE,
+        GST_MESSAGE_STATE_CHANGED | GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
 
-		switch (GST_MESSAGE_TYPE (msg)) {
-			case GST_MESSAGE_ERROR:
-				gst_message_parse_error (msg, &err, &debug_info);
-				g_printerr ("Error received from element %s: %s\n",
-						GST_OBJECT_NAME (msg->src), err->message);
-				g_printerr ("Debugging information: %s\n",
-						debug_info ? debug_info : "none");
-				g_clear_error (&err);
-				g_free (debug_info);
-				break;
-			case GST_MESSAGE_EOS:
-				g_print ("End-Of-Stream reached.\n");
-				break;
-			default:
-				/* We should not reach here because we only asked for ERRORs and EOS */
-				g_printerr ("Unexpected message received.\n");
-				break;
-		}
-		gst_message_unref (msg);
-	}
+    /* Parse message */
+    if (msg != NULL) {
+      GError *err;
+      gchar *debug_info;
 
-	/* Free resources */
-	gst_object_unref (bus);
-	gst_element_set_state (pipeline, GST_STATE_NULL);
-	gst_object_unref (pipeline);
-	return 0;
+      switch (GST_MESSAGE_TYPE (msg)) {
+        case GST_MESSAGE_ERROR:
+          gst_message_parse_error (msg, &err, &debug_info);
+          g_printerr ("Error received from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
+          g_printerr ("Debugging information: %s\n", debug_info ? debug_info : "none");
+          g_clear_error (&err);
+          g_free (debug_info);
+          terminate = TRUE;
+          break;
+        case GST_MESSAGE_EOS:
+          g_print ("End-Of-Stream reached.\n");
+          terminate = TRUE;
+          break;
+        case GST_MESSAGE_STATE_CHANGED:
+          /* We are only interested in state-changed messages from the pipeline */
+          if (GST_MESSAGE_SRC (msg) == GST_OBJECT (data.pipeline)) {
+            GstState old_state, new_state, pending_state;
+            gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
+            g_print ("Pipeline state changed from %s to %s:\n",
+                gst_element_state_get_name (old_state), gst_element_state_get_name (new_state));
+          }
+          break;
+        default:
+          /* We should not reach here */
+          g_printerr ("Unexpected message received.\n");
+          break;
+      }
+      gst_message_unref (msg);
+    }
+  } while (!terminate);
+
+  /* Free resources */
+  gst_object_unref (bus);
+  gst_element_set_state (data.pipeline, GST_STATE_NULL);
+  gst_object_unref (data.pipeline);
+  return 0;
 }
-
