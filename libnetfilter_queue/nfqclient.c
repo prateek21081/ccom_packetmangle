@@ -8,12 +8,13 @@
 #include <string.h>
 #include <sys/time.h>
 
+#define PAYLOAD_LEN 8
+
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data) {
     struct nfqnl_msg_packet_hdr *ph;
     unsigned char *pkt_data;
     struct ip *ip_hdr;
     struct udphdr *udp_hdr;
-    struct timeval tval;
     int pkt_len;
 
     ph = nfq_get_msg_packet_hdr(nfa);
@@ -21,14 +22,14 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_
     ip_hdr = (struct ip *)pkt_data;
     udp_hdr = (struct udphdr *)(pkt_data + ip_hdr->ip_hl * 4);
 
-    gettimeofday(&tval, NULL);
-    unsigned char modified_pkt[pkt_len + sizeof(struct timeval)];
+    unsigned char modified_pkt[pkt_len + PAYLOAD_LEN];
+    unsigned char payload[PAYLOAD_LEN];
+    scanf("%8c", payload);
     memcpy(modified_pkt, pkt_data, pkt_len);
-    memcpy(modified_pkt + pkt_len, &tval.tv_sec, sizeof(tval.tv_sec));
-    memcpy(modified_pkt + pkt_len + sizeof(tval.tv_sec), &tval.tv_usec, sizeof(tval.tv_usec));
-    // printf("tv_sec:%lu tv_usec:%lu\n", tval.tv_sec, tval.tv_usec);
+    memcpy(modified_pkt + pkt_len, payload, sizeof(payload));
+    memcpy(modified_pkt + pkt_len + sizeof(payload), payload, sizeof(payload));
 
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len + sizeof(tval.tv_sec) + sizeof(tval.tv_usec), modified_pkt);
+    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len + sizeof(payload), modified_pkt);
 }
 
 int main() {
