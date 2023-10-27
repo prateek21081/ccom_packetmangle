@@ -15,6 +15,6 @@ nft add chain inet filter OUTPUT '{ type filter hook output priority 0 ; policy 
 ```
 Now you can insert the nft rules as following:-
 ```bash
-nft insert rule ip filter INPUT ip saddr 192.168.226.165 ip daddr 192.168.226.176 counter queue num 1 
-nft insert rule ip filter OUTPUT ip saddr 192.168.226.176 ip daddr 192.168.226.165 counter queue num 1 
+nft insert rule inet filter INPUT ip saddr 192.168.226.165 ip daddr 192.168.226.176 counter queue num 1 
+nft insert rule inet filter OUTPUT ip saddr 192.168.226.176 ip daddr 192.168.226.165 counter queue num 1 
 ```
