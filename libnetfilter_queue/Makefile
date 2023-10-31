@@ -1,7 +1,7 @@
 CC=gcc
 
 all: nfqclient.c
-	$(CC) -lnetfilter_queue -o nfqclient.out nfqclient.c
+	$(CC) -o nfqclient.out nfqclient.c -lnetfilter_queue
 
 clean:
 	rm *.out
