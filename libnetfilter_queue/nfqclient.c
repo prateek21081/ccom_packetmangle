@@ -25,8 +25,10 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_
     unsigned char modified_pkt[pkt_len + PAYLOAD_LEN];
     unsigned char payload[PAYLOAD_LEN];
     scanf("%8c", payload);
+    // printf("=============PAYLOAD START==============\nj");
     for (int i = 0; i < PAYLOAD_LEN; i++)
         printf("%c", payload[i]);
+    // printf("==============PAYLOAD END===============\nj");
     memcpy(modified_pkt, pkt_data, pkt_len);
     memcpy(modified_pkt + pkt_len, payload, sizeof(payload));
     memcpy(modified_pkt + pkt_len + sizeof(payload), payload, sizeof(payload));

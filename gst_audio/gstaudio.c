@@ -1,5 +1,11 @@
 #include <gst/gst.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 /* Structure to contain all our information, so we can pass it to callbacks */
 typedef struct _CustomData {
@@ -17,6 +23,14 @@ int main(int argc, char *argv[]) {
   GstMessage *msg;
   GstStateChangeReturn ret;
   gboolean terminate = FALSE;
+  char* fifo = "./x";
+
+  mkfifo(fifo, 0666);
+
+  int fd = open(fifo, O_WRONLY);
+
+  printf("%dn\\n", fd);
+
 
   /* Initialize GStreamer */
   gst_init (&argc, &argv);
@@ -46,9 +60,9 @@ int main(int argc, char *argv[]) {
   }
 
   /* Set the element parameters */
-  g_object_set (data.fdsink, "fd", 1, NULL);
+  g_object_set (data.fdsink, "fd", fd, NULL);
   g_object_set (data.fdsink, "sync", false, NULL);
-  g_object_set (data.opusenc, "bitrate", 128000, NULL);
+  g_object_set (data.opusenc, "bitrate", 6000, NULL);
 
   /* Start playing */
   ret = gst_element_set_state (data.pipeline, GST_STATE_PLAYING);
