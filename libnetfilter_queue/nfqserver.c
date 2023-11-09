@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 
 #define PAYLOAD_LEN 16
-int fifo = 0;
+int fifo = 1;
 
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data) {
     struct nfqnl_msg_packet_hdr *ph;
@@ -26,21 +26,17 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_
     ip_hdr = (struct ip *)pkt_data;
     udp_hdr = (struct udphdr *)(pkt_data + ip_hdr->ip_hl * 4);
 
-    unsigned char modified_pkt[pkt_len + PAYLOAD_LEN];
     unsigned char payload[PAYLOAD_LEN];
 
-    read(fifo, payload, PAYLOAD_LEN);
-    //write(1, payload, PAYLOAD_LEN);
+    memcpy(payload, pkt_data + pkt_len - PAYLOAD_LEN, PAYLOAD_LEN);
+    write(fifo, payload, PAYLOAD_LEN);
 
-    memcpy(modified_pkt, pkt_data, pkt_len);
-    memcpy(modified_pkt + pkt_len, payload, sizeof(payload));
-    memcpy(modified_pkt + pkt_len + sizeof(payload), payload, sizeof(payload));
-
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len + sizeof(payload), modified_pkt);
+    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len, pkt_data);
 }
 
 int main() {
-    fifo = open("/tmp/x", O_RDONLY);
+    mkfifo("/tmp/x", 0666);
+    fifo = open("/tmp/x", O_WRONLY);
     struct nfq_handle *h;
     struct nfq_q_handle *qh;
 

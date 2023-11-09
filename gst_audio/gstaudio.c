@@ -23,14 +23,11 @@ int main(int argc, char *argv[]) {
   GstMessage *msg;
   GstStateChangeReturn ret;
   gboolean terminate = FALSE;
-  char* fifo = "./x";
+  char* fifo = "/tmp/x";
 
   mkfifo(fifo, 0666);
 
   int fd = open(fifo, O_WRONLY);
-
-  printf("%dn\\n", fd);
-
 
   /* Initialize GStreamer */
   gst_init (&argc, &argv);
