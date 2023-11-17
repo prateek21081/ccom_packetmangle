@@ -10,7 +10,7 @@ def packet_listener(pkt):
     pkt.accept()
 
 nfqueue = NetfilterQueue()
-nfqueue.bind(1, packet_listener)
+nfqueue.bind(0, packet_listener)
 try:
     nfqueue.run()
 except KeyboardInterrupt:

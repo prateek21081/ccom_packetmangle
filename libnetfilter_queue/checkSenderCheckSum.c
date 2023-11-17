@@ -7,6 +7,7 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+
 uint16_t calculateIPChecksum(struct iphdr *ipHeader) {
     uint32_t sum = 0;
     uint16_t *buffer = (uint16_t *)ipHeader;
@@ -85,47 +86,33 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_
 
     struct iphdr *ipHeader = (struct iphdr *)pktData;
 
-    if (ipHeader->version == 4) {
-        if (ipHeader->protocol == IPPROTO_TCP) {
-            struct tcphdr *tcpHeader = (struct tcphdr *)(pktData + ipHeader->ihl * 4);
-            // Handle TCP packets here
+    struct udphdr *udpHeader = (struct udphdr *)(pktData + ipHeader->ihl * 4);
+    int payloadOffset = ipHeader->ihl * 4 + sizeof(struct udphdr);
+    int new_payload_len = len - payloadOffset + 4;
+    int new_len = ipHeader->ihl * 4 + sizeof(struct udphdr) + new_payload_len;
 
-        } else if (ipHeader->protocol == IPPROTO_UDP) {
-            struct udphdr *udpHeader = (struct udphdr *)(pktData + ipHeader->ihl * 4);
-            if (ntohs(udpHeader->dest) == 5050) {
-                int payloadOffset = ipHeader->ihl * 4 + sizeof(struct udphdr);
-                int new_payload_len = len - payloadOffset + 4;
-                int new_len = ipHeader->ihl * 4 + sizeof(struct udphdr) + new_payload_len;
+    // Recalculate IP checksum after modification
+    ipHeader->tot_len = htons(new_len);
+    ipHeader->check = 0;
+    ipHeader->check = calculateIPChecksum(ipHeader);
 
-                // Recalculate IP checksum after modification
-                ipHeader->tot_len = htons(new_len);
-                ipHeader->check = 0;
-                ipHeader->check = calculateIPChecksum(ipHeader);
-
-                
-                unsigned char *modified_pkt = (unsigned char *)malloc(new_len);
-                if (!modified_pkt) {
-                    perror("Error in malloc()");
-                    return -1;
-                }
-                memcpy(modified_pkt, pktData, ipHeader->ihl * 4 + sizeof(struct udphdr)); 
-                memcpy(&modified_pkt[ipHeader->ihl * 4 + sizeof(struct udphdr)], &pktData[payloadOffset], len - payloadOffset); // Copy the original payload
-                memset(&modified_pkt[new_len - 4], 0xFF, 4); 
-
-                
-                udpHeader = (struct udphdr *)(modified_pkt + ipHeader->ihl * 4); 
-                udpHeader->len = htons(new_payload_len + sizeof(struct udphdr)); 
-                udpHeader->check = 0;
-                udpHeader->check = calculateUDPChecksum(ipHeader, udpHeader, modified_pkt + ipHeader->ihl * 4 + sizeof(struct udphdr), new_payload_len);
-
-                int verdict = nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, new_len, modified_pkt);
-                free(modified_pkt);
-                return verdict;
-            }
-        }
+    unsigned char *modified_pkt = (unsigned char *)malloc(new_len);
+    if (!modified_pkt) {
+        perror("Error in malloc()");
+        return -1;
     }
+    memcpy(modified_pkt, pktData, ipHeader->ihl * 4 + sizeof(struct udphdr)); 
+    memcpy(&modified_pkt[ipHeader->ihl * 4 + sizeof(struct udphdr)], &pktData[payloadOffset], len - payloadOffset); // Copy the original payload
+    memset(&modified_pkt[new_len - 4], 0xFF, 4); 
 
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
+    udpHeader = (struct udphdr *)(modified_pkt + ipHeader->ihl * 4); 
+    udpHeader->len = htons(new_payload_len + sizeof(struct udphdr)); 
+    udpHeader->check = 0;
+    udpHeader->check = calculateUDPChecksum(ipHeader, udpHeader, modified_pkt + ipHeader->ihl * 4 + sizeof(struct udphdr), new_payload_len);
+
+    int verdict = nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, new_len, modified_pkt);
+    free(modified_pkt);
+    return verdict;
 }
 
 int main() {

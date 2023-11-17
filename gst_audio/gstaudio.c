@@ -13,8 +13,8 @@ typedef struct _CustomData {
   GstElement *pulsesrc;
   GstElement *audioconvert;
   GstElement *opusenc;
-  GstElement *oggmux;
   GstElement *fdsink;
+  GstElement *oggmux;
 } CustomData;
 
 int main(int argc, char *argv[]) {
@@ -36,16 +36,16 @@ int main(int argc, char *argv[]) {
   data.pulsesrc = gst_element_factory_make ("pulsesrc", "pulsesource");
   data.audioconvert = gst_element_factory_make ("audioconvert", "audioconvert");
   data.opusenc = gst_element_factory_make ("opusenc", "opusenc");
-  data.oggmux = gst_element_factory_make ("oggmux", "oggmux");
   data.fdsink = gst_element_factory_make ("fdsink", "fdsink");
+  data.pipeline = gst_pipeline_new ("opus-pipeline");
+  data.oggmux = gst_element_factory_make ("oggmux", "oggmux");
+
 
   /* Create the empty pipeline */
-  data.pipeline = gst_pipeline_new ("opus-pipeline");
-
   if (!data.pipeline || !data.pulsesrc || !data.audioconvert || !data.opusenc || !data.oggmux || !data.fdsink) {
-    // g_printerr ("Not all elements could be created.\n");
     return -1;
   }
+  // g_printerr ("Not all elements could be created.\n");
 
   /* Build the pipeline. Note that we are NOT linking the source at this
    * point. We will do it later. */
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
   /* Set the element parameters */
   g_object_set (data.fdsink, "fd", fd, NULL);
   g_object_set (data.fdsink, "sync", false, NULL);
-  g_object_set (data.opusenc, "bitrate", 6000, NULL);
+  g_object_set (data.opusenc, "bitrate", atoi(argv[1]), NULL);
 
   /* Start playing */
   ret = gst_element_set_state (data.pipeline, GST_STATE_PLAYING);

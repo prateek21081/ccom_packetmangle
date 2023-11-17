@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <netinet/ip.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
@@ -28,16 +29,13 @@ static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_
 
             int udp_payload_len = ntohs(udpHeader->len) - sizeof(struct udphdr);
 
-            if (udp_payload_len >= 4) {
+            if (udp_payload_len >= 16) {
                 // Access the 4 extra bytes at the end of the payload
-                unsigned char appended_data[4];
-                memcpy(appended_data, pktData + (ipHeader->ihl * 4) + sizeof(struct udphdr) + udp_payload_len - 4, 4);
+                unsigned char appended_data[16];
+                memcpy(appended_data, pktData + (ipHeader->ihl * 4) + sizeof(struct udphdr) + udp_payload_len - 16, 16);
 
                 printf("Received Appended Data: ");
-                for (int i = 0; i < 4; i++) {
-                    printf("%02X ", appended_data[i]);
-                }
-                printf("\n");
+                write(stdout, appended_data, 16);
             }
         }
     }
