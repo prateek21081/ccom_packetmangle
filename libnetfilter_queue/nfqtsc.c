@@ -11,53 +11,55 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 
-//default values for fallback
-int PAYLOAD_LEN = 32;
-int QUEUE_NUM = 0;
-int FIFO_FD = 0;
-char* FIFO_PATH;
+uint16_t calc_ip_cheksum(struct iphdr *ipHeader) {
+    uint32_t sum = 0;
+    uint16_t *buffer = (uint16_t *)ipHeader;
+    int size = ipHeader->ihl * 4; // Size of the IP header in bytes
+
+    while (size > 1) {
+        sum += *buffer++;
+        size -= 2;
+    }
+
+    if (size == 1) {
+        sum += *(uint8_t *)buffer;
+    }
+
+    while (sum >> 16) {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+
+    return (uint16_t)~sum;
+}
 
 static int callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data) {
     struct nfqnl_msg_packet_hdr *ph;
     unsigned char *pkt_data;
-    struct ip *ip_hdr;
+    struct iphdr *ip_hdr;
     struct udphdr *udp_hdr;
     int pkt_len;
+    struct timeval tval;
 
     ph = nfq_get_msg_packet_hdr(nfa);
     pkt_len = nfq_get_payload(nfa, &pkt_data);
-    ip_hdr = (struct ip *)pkt_data;
-    udp_hdr = (struct udphdr *)(pkt_data + ip_hdr->ip_hl * 4);
+    ip_hdr = (struct iphdr *)pkt_data;
+    udp_hdr = (struct udphdr *)(pkt_data + ip_hdr->ihl * 4);
 
-    short num_bytes;
-    unsigned char payload[PAYLOAD_LEN];
+    gettimeofday(&tval, NULL);
+    unsigned char modified_pkt[pkt_len + sizeof(struct timeval)];
+    memcpy(modified_pkt, pkt_data, pkt_len);
+    memcpy(modified_pkt + pkt_len, &tval, sizeof(struct timeval));
+    // printf("tv_sec:%lu tv_usec:%lu\n", tval.tv_sec, tval.tv_usec);
 
-    memcpy(&num_bytes, pkt_data + pkt_len - sizeof(short), sizeof(short));
-    memcpy(payload, pkt_data + pkt_len - num_bytes - sizeof(short), num_bytes);
-    write(FIFO_FD, payload, num_bytes);
-    printf("bytes write: %d\n", (int)num_bytes);
+    ip_hdr = (struct iphdr *) modified_pkt;
+    ip_hdr->tot_len = htons(pkt_len + sizeof(struct timeval));
+    ip_hdr->check = 0;
+    ip_hdr->check = calc_ip_cheksum(ip_hdr);
 
-    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len, pkt_data);
+    return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, pkt_len + sizeof(struct timeval), modified_pkt);
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "usage: %s <fifo_path> <queue_num> <payload_len>", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    FIFO_PATH = argv[1];
-    QUEUE_NUM = atoi(argv[2]);
-    PAYLOAD_LEN = atoi(argv[3]);
-    FIFO_FD = open(FIFO_PATH, O_WRONLY | O_NONBLOCK);
-    printf("info: FIFO_PATH=%s\n", FIFO_PATH);
-    printf("info: QUEUE_NUM=%d\n", QUEUE_NUM);
-    printf("info: PAYLOAD_LEN=%d\n", PAYLOAD_LEN);
-    printf("info: FIFO_FD=%d\n", FIFO_FD);
-    if (FIFO_FD == -1) {
-        fprintf(stderr, "error: FIFO_FD=%d\n", FIFO_FD);
-        exit(EXIT_FAILURE);
-    }
-
+int main() {
     struct nfq_handle *h;
     struct nfq_q_handle *qh;
 
@@ -77,7 +79,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    qh = nfq_create_queue(h, QUEUE_NUM, &callback, NULL);
+    qh = nfq_create_queue(h, 0, &callback, NULL);
     if (!qh) {
         perror("Error in nfq_create_queue()");
         exit(1);
