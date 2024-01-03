@@ -17,7 +17,7 @@ typedef struct _CustomData {
   GstElement *pulsesrc;
   GstElement *audioconvert;
   GstElement *opusenc;
-  GstElement *oggmux;
+  GstElement *rtpopuspay;
   GstElement *fdsink;
 } CustomData;
 
@@ -51,21 +51,21 @@ int main(int argc, char *argv[]) {
   data.pulsesrc = gst_element_factory_make ("pulsesrc", "pulsesource");
   data.audioconvert = gst_element_factory_make ("audioconvert", "audioconvert");
   data.opusenc = gst_element_factory_make ("opusenc", "opusenc");
-  data.oggmux = gst_element_factory_make ("oggmux", "oggmux");
+  data.rtpopuspay = gst_element_factory_make ("rtpopuspay", "rtpopuspay");
   data.fdsink = gst_element_factory_make ("fdsink", "fdsink");
 
   /* Create the empty pipeline */
   data.pipeline = gst_pipeline_new ("opus-pipeline");
 
-  if (!data.pipeline || !data.pulsesrc || !data.audioconvert || !data.opusenc || !data.oggmux || !data.fdsink) {
+  if (!data.pipeline || !data.pulsesrc || !data.audioconvert || !data.opusenc || !data.rtpopuspay || !data.fdsink) {
     g_printerr ("Not all elements could be created.\n");
     return -1;
   }
 
   /* Build the pipeline. Note that we are NOT linking the source at this
    * point. We will do it later. */
-  gst_bin_add_many (GST_BIN (data.pipeline), data.pulsesrc, data.audioconvert, data.opusenc, data.oggmux, data.fdsink, NULL);
-  if (!gst_element_link_many (data.pulsesrc, data.audioconvert, data.opusenc, data.oggmux, data.fdsink, NULL)) {
+  gst_bin_add_many (GST_BIN (data.pipeline), data.pulsesrc, data.audioconvert, data.opusenc, data.rtpopuspay, data.fdsink, NULL);
+  if (!gst_element_link_many (data.pulsesrc, data.audioconvert, data.opusenc, data.rtpopuspay, data.fdsink, NULL)) {
     g_printerr ("Elements could not be linked.\n");
     gst_object_unref (data.pipeline);
     return -1;
@@ -74,7 +74,8 @@ int main(int argc, char *argv[]) {
   /* Set the element parameters */
   g_object_set (data.fdsink, "fd", FIFO_FD, NULL);
   g_object_set (data.fdsink, "sync", false, NULL);
-  g_object_set (data.opusenc, "bitrate", BITRATE, NULL);
+  g_object_set (data.fdsink, "async", false, NULL);
+  g_object_set (data.opusenc, "bitrate", BITRATE, NULL);  
 
   /* Start playing */
   ret = gst_element_set_state (data.pipeline, GST_STATE_PLAYING);
