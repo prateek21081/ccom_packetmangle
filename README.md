@@ -1,12 +1,23 @@
-# Packet Mangling via `libnetfilter_queue`
+# Covert Communication 
 
-## `iptables` rules
+People Involved:
+- Anirudh S. Kumar
+- Prateek Kumar
+- Paras Dhiman
+- Mehul Arora
+- Jithin S.
+- Richa Gupta
+- Sambuddho Chakravarty
+
+## Setting up netfilter queue
+
+### `iptables` rules
 ```bash
 iptables -I INPUT -s 192.168.226.165 -d 192.168.226.176/32 -j NFQUEUE --queue-num 1 # destination is client and source is server
 iptables -I OUTPUT -s 192.168.226.176/32 -d 192.168.226.165 -j NFQUEUE --queue-num 1 # server destination and client source
 ```
 
-## `nftable` rules
+### `nftable` rules
 Before inserting the rules, you also need to make the tables and make chains
 ```bash
 nft add table inet filter 
