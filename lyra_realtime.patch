@@ -96,10 +96,10 @@ index 8c4a9c3..b76e3cb 100644
      srcs = [
 diff --git a/lyra/cli_example/decoder_realtime.cc b/lyra/cli_example/decoder_realtime.cc
 new file mode 100644
-index 0000000..e82cfdb
+index 0000000..a8bb2f1
 --- /dev/null
 +++ b/lyra/cli_example/decoder_realtime.cc
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,146 @@
 +#include <cstdio>
 +#include <string>
 +#include "absl/flags/flag.h"
@@ -130,10 +130,8 @@ index 0000000..e82cfdb
 +
 +ABSL_FLAG(int, num_channels, 1, "The number of channels in the input audio.");
 +ABSL_FLAG(std::string, model_path, "lyra/model_coeffs",
-+          "Path to directory containing TFLite files. For mobile this is the "
-+          "absolute path, like "
-+          "'/data/local/tmp/lyra/model_coeffs/'."
-+          " For desktop this is the path relative to the binary.");
++          "Path to directory containing TFLite files"
++          "Set environment variable LYRA_COEFF to use that model instead.");
 +ABSL_FLAG(int, sample_rate_hz, 16000, "Desired output sample rate in Hertz.");
 +ABSL_FLAG(int, bitrate, 3200,
 +          "The bitrate in bps at which the file has been quantized.");
@@ -159,14 +157,22 @@ index 0000000..e82cfdb
 +    absl::SetProgramUsageMessage(argv[0]);
 +    absl::ParseCommandLine(argc, argv);
 +
++    std::string model_path_str = absl::GetFlag(FLAGS_model_path);
++
++    const char* lyra_coeff = std::getenv("LYRA_COEFF");
++    if (lyra_coeff != nullptr) {
++        LOG(INFO) << "LYRA_COEFF environment variable found, setting model_path to " << lyra_coeff;
++        model_path_str = lyra_coeff;
++    }
++
 +    const int sample_rate_hz = absl::GetFlag(FLAGS_sample_rate_hz);
 +    const int bitrate = absl::GetFlag(FLAGS_bitrate);
 +    const bool randomize_num_samples_requested = absl::GetFlag(FLAGS_randomize_num_samples_requested);
 +    const float packet_loss_rate = absl::GetFlag(FLAGS_packet_loss_rate);
 +    const float average_burst_length = absl::GetFlag(FLAGS_average_burst_length);
 +    const chromemedia::codec::PacketLossPattern fixed_packet_loss_pattern = absl::GetFlag(FLAGS_fixed_packet_loss_pattern);
-+    const ghc::filesystem::path model_path = chromemedia::codec::GetCompleteArchitecturePath( absl::GetFlag(FLAGS_model_path));
 +    const int num_channels = absl::GetFlag(FLAGS_num_channels);
++    const ghc::filesystem::path model_path = chromemedia::codec::GetCompleteArchitecturePath(model_path_str);
 +
 +    if (!fixed_packet_loss_pattern.starts_.empty()) {
 +        LOG(INFO) << "Using fixed packet loss pattern instead of gilbert model.";
@@ -242,10 +248,10 @@ index 0000000..e82cfdb
 +}
 diff --git a/lyra/cli_example/encoder_realtime.cc b/lyra/cli_example/encoder_realtime.cc
 new file mode 100644
-index 0000000..de36978
+index 0000000..73de063
 --- /dev/null
 +++ b/lyra/cli_example/encoder_realtime.cc
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,93 @@
 +#include <string>
 +#include <system_error>  // NOLINT(build/c++11)
 +#include <iostream>
@@ -293,11 +299,20 @@ index 0000000..de36978
 +    absl::SetProgramUsageMessage(argv[0]);
 +    absl::ParseCommandLine(argc, argv);
 +    
++    std::string model_path_str = absl::GetFlag(FLAGS_model_path);
++
++    const char* lyra_coeff = std::getenv("LYRA_COEFF");
++    if (lyra_coeff != nullptr) {
++        LOG(INFO) << "LYRA_COEFF environment variable found, setting model_path to " << lyra_coeff;
++        model_path_str = lyra_coeff;
++    }
++
++
 +    const int sample_rate_hz = absl::GetFlag(FLAGS_sample_rate_hz);
 +    const int num_channels = absl::GetFlag(FLAGS_num_channels);
 +    const int bitrate = absl::GetFlag(FLAGS_bitrate);
 +    const bool enable_dtx = absl::GetFlag(FLAGS_enable_dtx);
-+    const ghc::filesystem::path model_path = chromemedia::codec::GetCompleteArchitecturePath(absl::GetFlag(FLAGS_model_path));
++    const ghc::filesystem::path model_path = chromemedia::codec::GetCompleteArchitecturePath(model_path_str);
 +    
 +    auto encoder = chromemedia::codec::LyraEncoder::Create(sample_rate_hz, num_channels, bitrate, enable_dtx, model_path);
 +
