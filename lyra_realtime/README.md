@@ -16,8 +16,8 @@ git apply lyra_realtime.patch
 ```
 Compile the encoder and decoder
 ```bash
-bazel build -c opt lyra/cli_examples:encoder_realtime
-bazel build -c opt lyra/cli_examples:decoder_realtime
+bazel build -c opt lyra/cli_example:encoder_realtime
+bazel build -c opt lyra/cli_example:decoder_realtime
 ```
 ### Local Test using `parec` and `pacat`
 ```bash
