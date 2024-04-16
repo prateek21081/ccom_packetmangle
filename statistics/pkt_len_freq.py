@@ -4,7 +4,7 @@ from scapy.all import *
 import matplotlib.pyplot as plt
 
 if (len(sys.argv) != 2):
-    print("Usage: ./main.py <file_name>")
+    print("Usage: ./pkt_len_freq.py <file_name>")
 capture = rdpcap(sys.argv[1])
 
 pkt_len_freq = dict()
@@ -21,15 +21,19 @@ for pkt in capture:
 
 all_pkts_lens = pkt_len_freq.items()
 
-filtered_pkts = []
+num_pkts = sum([x[1] for x in all_pkts_lens])
 
-for pkt in all_pkts_lens:
-    if pkt[1] >= 100:
-        filtered_pkts.append(pkt)
+# turning frequencies into percentages
+for key in pkt_len_freq:
+    pkt_len_freq[key] = (pkt_len_freq[key] / num_pkts) * 100
 
-x = [pkt[0] for pkt in filtered_pkts]
-y = [pkt[1] for pkt in filtered_pkts] 
+# remove packets with with less than 0.01% frequency
+pkt_len_freq = {k: v for k, v in pkt_len_freq.items() if v > 0.01}
+
+x = pkt_len_freq.keys()
+y = pkt_len_freq.values()
 
 print(f"Malformed packets: {malformed}")
 plt.bar(x, y) 
-plt.savefig(sys.argv[1].split('.')[0] + ".png")
+# plt.savefig(sys.argv[1].split('.')[0] + ".png")
+plt.show()
