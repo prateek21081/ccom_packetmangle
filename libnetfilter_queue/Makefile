@@ -1,14 +1,40 @@
-CC=gcc
+# Makefile
 
-all: nfqclient.c
-	$(CC) -g -o nfqclient.out nfqclient.c -lnetfilter_queue
-	$(CC) -g -o nfqserver.out nfqserver.c -lnetfilter_queue
-	$(CC) -g -o nfqtss.out nfqtss.c -lnetfilter_queue
-	$(CC) -g -o nfqtsc.out nfqtsc.c -lnetfilter_queue
+# Compiler
+CC = gcc
+
+# Compiler flags
+CFLAGS = -Wall
+
+# Find all .c files in the current directory and its subdirectories
+SRCS = $(shell find . -name "*.c")
+
+# Define the .out file for each .c file
+OUTS = $(SRCS:%.c=%.out)
+
+all: $(OUTS)
+
+# Rule to compile .c files into .out files
+%.out: %.c
+	$(CC) $(CFLAGS) $< -o $@
 
 install:
-	cp nfqserver.out /usr/local/bin/nfqserver
-	cp nfqclient.out /usr/local/bin/nfqclient
+	@if [ -z "$(dir)" ]; then \
+		echo "dir is not set. Use make install dir=<directory>"; \
+		exit 1; \
+    fi
+	@for file in $(shell find ./$(dir) -name "*.out"); do \
+		cp $$file /usr/local/bin/`basename $$file .out`; \
+	done
+
+uninstall:
+	@if [ -z "$(dir)" ]; then \
+		echo "dir is not set. Use make uninstall dir=<directory>"; \
+		exit 1; \
+	fi
+	@for file in $(shell find ./$(dir) -name "*.out"); do \
+		rm /usr/local/bin/`basename $$file .out`; \
+	done
 
 clean:
-	rm *.out
+	find . -name "*.out" -type f -delete
