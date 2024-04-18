@@ -16,7 +16,7 @@ all: $(OUTS)
 
 # Rule to compile .c files into .out files
 %.out: %.c
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@ -lnetfilter_queue
 
 install:
 	@if [ -z "$(dir)" ]; then \
