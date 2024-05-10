@@ -21,9 +21,9 @@ create_buffer() {
 
 handle_sigint() {
     echo "Cleaning up..."
-    pkill nfq* 
-    pkill parec; pkill pacat
-    iptables -F
+    sudo pkill nfq* 
+    sudo pkill parec; pkill pacat
+    sudo iptables -F
     rm -f /tmp/ccom_buffer_*
     echo "Exiting..."
 }
@@ -66,28 +66,28 @@ if [[ $mode == "send" ]]; then
     pulseaudio 2&>1 & sleep 2
     parec --latency-msec=20 --rate=16000 | encoder_realtime --model_path=$LYRA_COEFF > $buffer_path &
     echo "Adding iptables OUTPUT rule..."
-    iptables -I OUTPUT -s $sender_addr -d $relay_addr -p udp -j NFQUEUE --queue-num $queue_num_c1
-    iptables -L OUTPUT
+    sudo iptables -I OUTPUT -s $sender_addr -d $relay_addr -p udp -j NFQUEUE --queue-num $queue_num_c1
+    sudo iptables -L OUTPUT
     echo "Starting nfqclient..."
-    nfqclient $buffer_path $queue_num_c1 $payload_length
+    sudo nfqclient $buffer_path $queue_num_c1 $payload_length
 elif [[ $mode == "copy" ]]; then
     create_buffer
     echo "Adding iptables rules..."
-    iptables -I INPUT -s $sender_addr -d $relay_addr -p udp -j NFQUEUE --queue-num $queue_num_c1
-    iptables -I OUTPUT -s $relay_addr -d $receiver_addr -p udp -j NFQUEUE --queue-num $queue_num_c2
-    iptables -L 
+    sudo iptables -I INPUT -s $sender_addr -d $relay_addr -p udp -j NFQUEUE --queue-num $queue_num_c1
+    sudo iptables -I OUTPUT -s $relay_addr -d $receiver_addr -p udp -j NFQUEUE --queue-num $queue_num_c2
+    sudo iptables -L 
     echo "Starting nfqclient & nfqserver..."
-    nfqclient $buffer_path $queue_num_c2 $payload_length &
-    nfqserver $buffer_path $queue_num_c1 $payload_length
+    sudo nfqclient $buffer_path $queue_num_c2 $payload_length &
+    sudo nfqserver $buffer_path $queue_num_c1 $payload_length
 elif [[ $mode == "recv" ]]; then
     create_buffer
     echo "Starting lyra decoder..."
     pulseaudio 2&>1 & sleep 2
     cat $buffer_path | decoder_realtime --model_path=$LYRA_COEFF | pacat --latency-msec=20 --rate=16000 &
     echo "Adding iptables INPUT rule..."
-    iptables -I INPUT -s $relay_addr -d $receiver_addr -p udp -j NFQUEUE --queue-num $queue_num_c2
-    iptables -L INPUT
+    sudo iptables -I INPUT -s $relay_addr -d $receiver_addr -p udp -j NFQUEUE --queue-num $queue_num_c2
+    sudo iptables -L INPUT
     echo "Starting nfqserver..."
-    nfqserver $buffer_path $queue_num_c2 $payload_length
+    sudo nfqserver $buffer_path $queue_num_c2 $payload_length
     echo
 fi
