@@ -1,0 +1,10 @@
+﻿{
+  "Name": "CcomTransmit",
+  "Author": "ccom",
+  "Version": "1.0.0",
+  "Description": "CcomTransmit",
+  "UniqueID": "ccom.CcomTransmit",
+  "EntryDll": "CcomTransmit.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}

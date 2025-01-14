@@ -1,0 +1,6 @@
+/home/gs/Projects/CcomTransmit/CcomTransmit/bin/Debug/CcomTransmit.dll
+/home/gs/Projects/CcomTransmit/CcomTransmit/bin/Debug/Mono.Posix.NETStandard.dll
+/home/gs/Projects/CcomTransmit/CcomTransmit/obj/Debug/CcomTransmit.csproj.CoreCompileInputs.cache
+/home/gs/Projects/CcomTransmit/CcomTransmit/obj/Debug/CcomTransmit.csproj.CopyComplete
+/home/gs/Projects/CcomTransmit/CcomTransmit/obj/Debug/CcomTransmit.dll
+/home/gs/Projects/CcomTransmit/CcomTransmit/obj/Debug/CcomTransmit.csproj.AssemblyReference.cache
