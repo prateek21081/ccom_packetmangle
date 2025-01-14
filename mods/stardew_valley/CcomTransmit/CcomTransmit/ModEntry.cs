@@ -7,64 +7,74 @@ namespace CcomTransmit
 {
     class ModMessage
     {
-        public int len;
+        public sbyte len;
         public byte[] buf;
 
-        public ModMessage()
+        public ModMessage(byte size)
         {
             this.len = 0;
-            this.buf = new byte[32];
+            this.buf = new byte[size];
         }
     }
 
     /// <summary>The mod entry point.</summary>
     internal sealed class ModEntry : Mod
     {
-        private bool tx = false;
-        private bool dbg = false;
+        private bool send = false;
+        private bool recv = false;
+        private bool debug = false;
         private FileStream fsr;
         private FileStream fsw;
+        ModMessage message;
 
         public override void Entry(IModHelper helper)
         {
+            message = new ModMessage(24);
             fsr = new FileStream("/tmp/ccom_send", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
             fsw = new FileStream("/tmp/ccom_recv", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
 
             helper.Events.Multiplayer.ModMessageReceived += this.OnModMessageReceived;
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTickedSendModMessage;
             helper.Events.Multiplayer.PeerConnected += this.OnPeerConnected;
-            helper.ConsoleCommands.Add("ccom_tx", "Toggle ccom transmit.\n\nUsage: ccom_tx <bool>\n", this.toggle);
-            helper.ConsoleCommands.Add("ccom_dbg", "Toggle ccom debug messages.\n\nUsage ccom_dbg <bool>\n", this.debug);
+            helper.ConsoleCommands.Add("ccom_send", "Toggle ccom transmit.\n\nUsage: ccom_send <bool>\n", this.set_send);
+            helper.ConsoleCommands.Add("ccom_recv", "Toggle ccom recieve.\n\nUsage: ccom_recv <bool>\n", this.set_recv);
+            helper.ConsoleCommands.Add("ccom_debug", "Toggle ccom debug messages.\n\nUsage ccom_dbg <bool>\n", this.set_debug);
         }
 
-        private void toggle(string command, string[] args)
+        private void set_send(string command, string[] args)
         {
-            this.tx = bool.Parse(args[0]);
-            if (this.dbg) this.Monitor.Log($"ccom_tx -> {this.tx.ToString()}", LogLevel.Info);
+            this.send = bool.Parse(args[0]);
+            if (this.debug) this.Monitor.Log($"ccom_send -> {this.send.ToString()}", LogLevel.Info);
         }
 
-        private void debug(string command, string[] args)
+        private void set_recv(string command, string[] args)
         {
-            this.dbg = bool.Parse(args[0]);
-            if (this.dbg) this.Monitor.Log($"ccom_dbg -> {this.dbg.ToString()}", LogLevel.Info);
+            this.recv = bool.Parse(args[0]);
+            if (this.debug) this.Monitor.Log($"ccom_recv -> {this.recv.ToString()}", LogLevel.Info);
         }
 
-        private void OnUpdateTickedSendModMessage(object sender, EventArgs e)
+        private void set_debug(string command, string[] args)
         {
-            if (!this.tx) return;
-            ModMessage message = new ModMessage();
-            message.len = fsr.Read(message.buf, 0, message.buf.Length);
+            this.debug = bool.Parse(args[0]);
+            if (this.debug) this.Monitor.Log($"ccom_dbg -> {this.debug.ToString()}", LogLevel.Info);
+        }
+
+        private void OnUpdateTickedSendModMessage(object sender, UpdateTickedEventArgs e)
+        {
+            if (!e.IsMultipleOf(3) || !this.send) return;
+            message.len = (sbyte)fsr.Read(message.buf, 0, message.buf.Length);
             if (message.len <= 0) return;
             this.Helper.Multiplayer.SendMessage(message, "ccom_msg");
-            if (this.dbg) this.Monitor.Log($"{message.buf.ToString()} {message.len.ToString()} bytes.", LogLevel.Info);
+            if (this.debug) this.Monitor.Log($"{message.buf.ToString()} {message.len.ToString()} bytes.", LogLevel.Info);
         }
 
         private void OnModMessageReceived(object sender, ModMessageReceivedEventArgs e)
         {
-            ModMessage message = e.ReadAs<ModMessage>();
-            fsw.Write(message.buf, 0, message.len);
+            if (!this.recv) return;
+            ModMessage msg_recv = e.ReadAs<ModMessage>();
+            fsw.Write(msg_recv.buf, 0, msg_recv.len);
             fsw.Flush(true);
-            if (this.dbg) this.Monitor.Log($"{message.buf.ToString()}", LogLevel.Info);
+            if (this.debug) this.Monitor.Log($"{msg_recv.buf.ToString()}", LogLevel.Info);
         }
 
         private void OnPeerConnected(object sender, PeerConnectedEventArgs e)
